@@ -1,13 +1,20 @@
 # Industrix Full Stack Todo App
 
-A full-stack Todo List application built with **React (Vite)** and **Go (Gin)**, featuring category management, task prioritization, and responsive design.
+A robust, full-stack Todo List application built with **React (Vite)** and **Go (Gin)**. This application demonstrates modern web development practices including server-side pagination, advanced filtering, containerization, and unit testing.
 
 ## 🚀 Features
-* **Todo Management:** Create, Read, Update, Delete (CRUD) tasks.
+
+### Core Features
+* **Todo Management:** Create, Read, Update, and Delete (CRUD) tasks.
 * **Categories:** Organize tasks by categories (Work, Personal, etc.) with custom colors.
-* **Search & Sort:** Search tasks by title and sort by priority, due date, etc.
-* **Pagination:** Efficient server-side pagination.
-* **Responsive UI:** Optimized for Desktop and Mobile using Ant Design.
+* **Responsive UI:** Fully responsive design optimized for Desktop, Tablet, and Mobile using **Ant Design**.
+
+### Advanced Features
+* **🔍 Search:** Real-time search by task title using database `ILIKE` queries.
+* **⚡ Pagination:** Efficient server-side pagination to handle large datasets.
+* **🐳 Dockerized:** Full stack (Backend + Database) runs via Docker Compose.
+* **🚨 Prioritization:** Visual indicators for High, Medium, and Low priority tasks.
+* **🧪 Unit Tests:** Backend controllers structure supports testing.
 
 ---
 
@@ -18,11 +25,12 @@ A full-stack Todo List application built with **React (Vite)** and **Go (Gin)**,
 * **UI Library:** Ant Design (antd v5)
 * **State Management:** React Context API
 * **HTTP Client:** Axios
+* **Linting:** ESLint
 
 ### Backend
 * **Language:** Go (Golang) 1.23
 * **Framework:** Gin Web Framework
-* **Database:** PostgreSQL
+* **Database:** PostgreSQL (Production)
 * **ORM:** GORM
 * **Containerization:** Docker & Docker Compose
 
@@ -31,10 +39,10 @@ A full-stack Todo List application built with **React (Vite)** and **Go (Gin)**,
 ## ⚙️ Setup Instructions
 
 ### Option 1: Run with Docker (Recommended)
-This is the easiest way to run the entire stack (Database + Backend). Frontend runs locally.
+This is the easiest way to run the Backend and Database.
 
 1.  **Start Backend & Database:**
-    Open a terminal in the `backend` folder and run:
+    Open a terminal in the `backend` folder:
     ```bash
     cd backend
     docker-compose up --build
@@ -42,22 +50,21 @@ This is the easiest way to run the entire stack (Database + Backend). Frontend r
     *The backend API will be available at `http://localhost:8080`.*
 
 2.  **Start Frontend:**
-    Open a new terminal in the `frontend` folder and run:
+    Open a new terminal in the `frontend` folder:
     ```bash
     cd frontend
     npm install
     npm run dev
     ```
-    *Open your browser at `http://localhost:5173` (or the port shown in terminal).*
+    *Open your browser at `http://localhost:5173`.*
 
 ### Option 2: Run Manually (Local)
 
 **Prerequisites:** PostgreSQL must be installed and running locally.
 
 1.  **Backend Setup:**
-    * Ensure PostgreSQL is running.
-    * Create a database named `industrix_db`.
-    * Navigate to `backend` and create a `.env` file (or update environment variables in your terminal) to match your local DB credentials:
+    * Create a PostgreSQL database named `industrix_db`.
+    * Navigate to `backend` and create a `.env` file matching your local DB credentials:
         ```env
         DB_HOST=localhost
         DB_USER=postgres
@@ -72,16 +79,16 @@ This is the easiest way to run the entire stack (Database + Backend). Frontend r
         ```
 
 2.  **Frontend Setup:**
-    * Same as Option 1 (Step 2).
+    * Follow the same steps as Option 1.
 
 ---
 
-## VX API Documentation
+## 📡 API Documentation
 
 ### Todos
 | Method | Endpoint | Description | Query Params |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/todos` | Get paginated list of todos | `page`, `limit`, `search`, `sort_by`, `order` |
+| `GET` | `/api/todos` | Get paginated list of todos | `page`, `limit`, `search`, `sort_by`, `order`, `priority`, `completed`, `category_id` |
 | `POST` | `/api/todos` | Create a new todo | - |
 | `GET` | `/api/todos/:id` | Get specific todo details | - |
 | `PUT` | `/api/todos/:id` | Update a todo | - |
@@ -97,40 +104,43 @@ This is the easiest way to run the entire stack (Database + Backend). Frontend r
 
 ---
 
-## 📝 Technical Decisions & Answers
+## 📝 Technical Decisions
 
 ### 1. Database Design
 **Structure:**
-I created two main tables: `todos` and `categories`.
+Two main tables: `todos` and `categories`.
 * **`categories`**: Stores `id`, `name`, and `color`.
 * **`todos`**: Stores task details (`title`, `priority`, `due_date`, etc.) and has a Foreign Key `category_id` linking to the `categories` table.
 
 **Reasoning:**
-* **Normalization:** Separating categories into their own table avoids data redundancy. If we want to change a category's color, we only update it in one place.
-* **Indexing:** An index was added to the `todos(title)` column to optimize search performance, as searching by title is a core feature.
-* **Constraints:** The `priority` column uses a check constraint (handled via validation in Go) to ensure values are strictly 'high', 'medium', or 'low'.
+* **Normalization:** Separating categories avoids data redundancy.
+* **Indexing:** An index was added to the `todos(title)` column (`CREATE INDEX idx_todos_title`) to optimize search performance.
 
 ### 2. Pagination & Filtering
 **Implementation:**
-Pagination and filtering are handled on the **Backend (Server-side)** to ensure performance and scalability with large datasets.
-
+Pagination and filtering are handled on the **Backend (Server-side)**.
 * **Query Logic:**
-    * **Pagination:** Uses SQL `LIMIT` and `OFFSET` calculated from the `page` and `limit` query parameters.
+    * **Pagination:** Uses SQL `LIMIT` and `OFFSET` calculated from `page` and `limit` params.
     * **Filtering (Search):** Uses a `WHERE title ILIKE %search%` clause for case-insensitive partial matching.
-    * **Sorting:** Dynamic `ORDER BY` clauses based on user selection (e.g., sorting Priority High->Low uses a custom `CASE WHEN` SQL statement).
-* **Why Server-side?** Fetching all data to the frontend just to filter/sort page 1 is inefficient. Server-side processing reduces payload size and memory usage on the client.
+* **Why Server-side?** Fetching all data to the frontend just to filter/sort page 1 is inefficient. Server-side processing reduces payload size.
 
-### 3. Technical Decisions (Architecture)
-* **Backend (Go + Gin):** Chosen for its high performance and simplicity. The architecture follows a layered approach:
-    * `models/`: Defines data structures and DB schema.
-    * `controllers/`: Handles HTTP request logic.
-    * `config/`: Manages Database connections.
-    * `routes/`: Maps endpoints to controllers.
+### 3. Architecture
+* **Backend (Go + Gin):** Layered approach:
+    * `models/`: DB schema structs.
+    * `controllers/`: HTTP logic.
+    * `config/`: DB connections.
+    * `routes/`: Endpoint mapping.
 * **Frontend (React + Context API):**
-    * **Context API:** Used `TodoContext` to manage global state (todos list, loading status, pagination) effectively without "prop drilling".
-    * **Ant Design:** Chosen to speed up UI development with professional, accessible, and responsive components (Table, Modal, Forms).
+    * **Context API:** `TodoContext` manages global state to avoid "prop drilling".
+    * **Ant Design:** Accelerates UI development with responsive components.
 
-### 4. Responsive Design
-**Implementation:**
-* **Grid System:** Used Ant Design's `<Row>` and `<Col>` components to create layouts that adapt to screen width.
-* **Adaptive Tables:** The Todo List table conditionally hides less critical columns (like "Category" or "Due Date") on mobile screens (`xs`) using the `responsive` prop, ensuring the layout remains clean on small devices.
+---
+
+## 🧪 Running Tests
+
+The backend includes unit tests for controllers using an in-memory SQLite database for speed and isolation.
+
+To run the tests:
+```bash
+cd backend
+go test ./controllers -v
