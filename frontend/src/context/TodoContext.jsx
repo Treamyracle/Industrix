@@ -9,66 +9,89 @@ export const TodoProvider = ({ children }) => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
-  
-  // Keep track of search term to persist across pagination
-  const [searchText, setSearchText] = useState(""); 
+  const [filters, setFilters] = useState({});
+  const [searchText, setSearchText] = useState("");
+  const [sortParams, setSortParams] = useState({ field: 'created_at', order: 'desc' });
 
-  // Fetch Categories
   const fetchCategories = async () => {
     try {
       const res = await apiClient.get('/categories');
       setCategories(res.data);
     } catch (error) {
-      // FIX: Log the actual error to satisfy 'no-unused-vars'
       console.error("Fetch categories error:", error);
     }
   };
 
-  // Fetch Todos with Pagination & Search
-  const fetchTodos = useCallback(async (page = 1, search = "") => {
+  const addCategory = async (values) => {
+    try {
+      await apiClient.post('/categories', values);
+      message.success("Category created!");
+      fetchCategories();
+    } catch (error) {
+      console.error("Create category error:", error);
+      message.error("Failed to create category");
+      throw error;
+    }
+  };
+
+  const fetchTodos = useCallback(async (
+    page = 1,
+    search = searchText,
+    sortField = sortParams.field,
+    sortOrder = sortParams.order,
+    currentFilters = filters
+  ) => {
     setLoading(true);
     try {
-      // Backend expects: ?page=1&limit=10&search=...
-      const res = await apiClient.get(`/todos?page=${page}&limit=10&search=${search}`);
-      
-      setTodos(res.data.data || []); 
-      
+      const params = new URLSearchParams();
+      params.append('page', page);
+      params.append('limit', 10);
+      if (search) params.append('search', search);
+      params.append('sort_by', sortField);
+      params.append('order', sortOrder);
+
+      if (currentFilters.priority) params.append('priority', currentFilters.priority);
+      if (currentFilters.completed) params.append('completed', currentFilters.completed);
+      if (currentFilters.category_id) params.append('category_id', currentFilters.category_id);
+
+      const res = await apiClient.get(`/todos?${params.toString()}`);
+
+      setTodos(res.data.data || []);
       setPagination({
         current: res.data.pagination.current_page,
         pageSize: res.data.pagination.per_page,
         total: res.data.pagination.total,
       });
-      
-      setSearchText(search); 
+
+      setSearchText(search);
+      setSortParams({ field: sortField, order: sortOrder });
+      setFilters(currentFilters);
+
     } catch (error) {
-      // FIX: Log the error
       console.error("Fetch todos error:", error);
       message.error("Failed to load todos");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchText, sortParams, filters]);
 
-  // Create Todo
   const addTodo = async (values) => {
     try {
       await apiClient.post('/todos', values);
       message.success("Todo created!");
-      fetchTodos(1, searchText); 
+      fetchTodos(1, searchText, sortParams.field, sortParams.order);
     } catch (error) {
-      // FIX: Log the error
       console.error("Create todo error:", error);
       message.error("Failed to create todo");
       throw error;
     }
   };
 
-  // Update Todo
   const updateTodo = async (id, values) => {
     try {
       await apiClient.put(`/todos/${id}`, values);
       message.success("Todo updated!");
-      fetchTodos(pagination.current, searchText);
+      fetchTodos(pagination.current, searchText, sortParams.field, sortParams.order);
     } catch (error) {
       console.error("Update todo error:", error);
       message.error("Failed to update todo");
@@ -76,28 +99,24 @@ export const TodoProvider = ({ children }) => {
     }
   };
 
-  // Toggle Completion
   const toggleComplete = async (id) => {
     try {
       await apiClient.patch(`/todos/${id}/complete`);
       setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
       message.success("Status updated");
     } catch (error) {
-      // FIX: Log the error
       console.error("Toggle status error:", error);
       message.error("Failed to update status");
-      fetchTodos(pagination.current, searchText); 
+      fetchTodos(pagination.current, searchText, sortParams.field, sortParams.order);
     }
   };
 
-  // Delete Todo
   const deleteTodo = async (id) => {
     try {
       await apiClient.delete(`/todos/${id}`);
       message.success("Todo deleted");
-      fetchTodos(pagination.current, searchText);
+      fetchTodos(pagination.current, searchText, sortParams.field, sortParams.order);
     } catch (error) {
-      // FIX: Log the error
       console.error("Delete todo error:", error);
       message.error("Failed to delete");
     }
@@ -105,19 +124,19 @@ export const TodoProvider = ({ children }) => {
 
   useEffect(() => {
     fetchCategories();
-    fetchTodos();
-  }, [fetchTodos]);
+    fetchTodos(1, "", "created_at", "desc");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <TodoContext.Provider value={{ 
-      todos, categories, loading, pagination, searchText,
-      fetchTodos, addTodo, updateTodo, toggleComplete, deleteTodo 
+    <TodoContext.Provider value={{
+      todos, categories, loading, pagination, searchText, sortParams,
+      fetchTodos, addTodo, updateTodo, toggleComplete, deleteTodo, addCategory
     }}>
       {children}
     </TodoContext.Provider>
   );
 };
 
-// FIX: Add this comment to silence the "Fast Refresh" warning for this line
 // eslint-disable-next-line react-refresh/only-export-components
 export const useTodos = () => useContext(TodoContext);

@@ -9,14 +9,14 @@ const TodoForm = ({ visible, onClose, initialValues }) => {
   const [form] = Form.useForm();
   const { addTodo, updateTodo, categories } = useTodos();
 
-  // Reset or Set form values when modal opens/closes
+
   useEffect(() => {
     if (visible) {
       if (initialValues) {
-        // If editing, pre-fill data [cite: 15]
+
         form.setFieldsValue({
           ...initialValues,
-          // Convert ISO string to dayjs object for DatePicker
+
           due_date: initialValues.due_date ? dayjs(initialValues.due_date) : null,
         });
       } else {
@@ -28,11 +28,11 @@ const TodoForm = ({ visible, onClose, initialValues }) => {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      
-      // Format payload to match Backend Struct
+
+
       const payload = {
         ...values,
-        // AntD DatePicker returns a dayjs object, convert to ISO string
+
         due_date: values.due_date ? values.due_date.toISOString() : null,
       };
 
@@ -41,7 +41,7 @@ const TodoForm = ({ visible, onClose, initialValues }) => {
       } else {
         await addTodo(payload);
       }
-      
+
       onClose();
       form.resetFields();
     } catch (info) {
@@ -86,7 +86,7 @@ const TodoForm = ({ visible, onClose, initialValues }) => {
         </div>
 
         <Form.Item name="due_date" label="Due Date">
-            <DatePicker style={{ width: '100%' }} />
+          <DatePicker style={{ width: '100%' }} />
         </Form.Item>
       </Form>
     </Modal>

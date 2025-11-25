@@ -11,41 +11,65 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GET /api/todos
 func GetTodos(c *gin.Context) {
 	var todos []models.Todo
 	var total int64
 
-	// 1. Pagination Params
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	offset := (page - 1) * limit
 
-	// 2. Filter Params
 	search := c.Query("search")
+	sortBy := c.DefaultQuery("sort_by", "created_at")
+	order := c.DefaultQuery("order", "desc")
+
+	priority := c.Query("priority")
+	completed := c.Query("completed")
+	categoryID := c.Query("category_id")
 
 	query := config.DB.Model(&models.Todo{}).Preload("Category")
+	query = query.Joins("LEFT JOIN categories ON categories.id = todos.category_id")
 
-	// 3. Search Logic
 	if search != "" {
-		query = query.Where("title ILIKE ?", "%"+search+"%")
+		query = query.Where("todos.title ILIKE ?", "%"+search+"%")
 	}
 
-	// 4. Execute Count
-	query.Count(&total)
+	if priority != "" {
+		query = query.Where("todos.priority = ?", priority)
+	}
+	if completed != "" {
+		isCompleted := completed == "true"
+		query = query.Where("todos.completed = ?", isCompleted)
+	}
+	if categoryID != "" {
+		query = query.Where("todos.category_id = ?", categoryID)
+	}
 
-	// 5. Execute Query with Pagination
-	result := query.Limit(limit).Offset(offset).Order("created_at DESC").Find(&todos)
+	switch sortBy {
+	case "priority":
+		if order == "asc" {
+			query = query.Order("CASE WHEN priority='low' THEN 1 WHEN priority='medium' THEN 2 WHEN priority='high' THEN 3 ELSE 4 END")
+		} else {
+			query = query.Order("CASE WHEN priority='high' THEN 1 WHEN priority='medium' THEN 2 WHEN priority='low' THEN 3 ELSE 4 END")
+		}
+	case "category":
+		query = query.Order("categories.name " + order)
+	case "status":
+		query = query.Order("completed " + order)
+	default:
+		query = query.Order("todos." + sortBy + " " + order)
+	}
+
+	query.Count(&total)
+	result := query.Select("todos.*").Limit(limit).Offset(offset).Find(&todos)
 
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
 
-	// 6. Calculate Total Pages
 	totalPages := int(math.Ceil(float64(total) / float64(limit)))
 
-	// 7. Format Response matches requirements
 	response := models.TodoResponse{
 		Data: todos,
 		Pagination: models.PaginationMeta{
@@ -59,15 +83,13 @@ func GetTodos(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// POST /api/todos
 func CreateTodo(c *gin.Context) {
 	var input models.Todo
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}) // Proper validation error
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Set defaults
 	input.CreatedAt = time.Now()
 	input.UpdatedAt = time.Now()
 
@@ -76,12 +98,10 @@ func CreateTodo(c *gin.Context) {
 		return
 	}
 
-	// Re-fetch to include category data
 	config.DB.Preload("Category").First(&input, input.ID)
 	c.JSON(http.StatusCreated, input)
 }
 
-// PATCH /api/todos/:id/complete
 func ToggleTodoComplete(c *gin.Context) {
 	id := c.Param("id")
 	var todo models.Todo
@@ -91,7 +111,6 @@ func ToggleTodoComplete(c *gin.Context) {
 		return
 	}
 
-	// Toggle status
 	newStatus := !todo.Completed
 	config.DB.Model(&todo).Updates(map[string]interface{}{
 		"completed":  newStatus,
@@ -101,7 +120,6 @@ func ToggleTodoComplete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Status updated", "completed": newStatus})
 }
 
-// DELETE /api/todos/:id
 func DeleteTodo(c *gin.Context) {
 	id := c.Param("id")
 	if err := config.DB.Delete(&models.Todo{}, id).Error; err != nil {
@@ -111,7 +129,6 @@ func DeleteTodo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Todo deleted"})
 }
 
-// PUT /api/todos/:id
 func UpdateTodo(c *gin.Context) {
 	id := c.Param("id")
 	var todo models.Todo
@@ -126,7 +143,6 @@ func UpdateTodo(c *gin.Context) {
 		return
 	}
 
-	// Update fields
 	todo.Title = input.Title
 	todo.Description = input.Description
 	todo.Priority = input.Priority

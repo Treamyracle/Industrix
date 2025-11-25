@@ -5,6 +5,7 @@ import (
 	"industrix-backend/models"
 	"log"
 	"os"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -28,7 +29,32 @@ func ConnectDB() {
 		log.Fatal("Failed to connect to database: ", err)
 	}
 
-	// AutoMigrate is used here for ease of development,
-	// but the SQL files are provided in /migrations as requested.
 	DB.AutoMigrate(&models.Category{}, &models.Todo{})
+
+	seedCategories()
+}
+
+func seedCategories() {
+
+	defaultCategories := []models.Category{
+		{Name: "Work", Color: "#1677ff"},
+		{Name: "Personal", Color: "#52c41a"},
+		{Name: "Shopping", Color: "#faad14"},
+	}
+
+	for _, cat := range defaultCategories {
+		var count int64
+
+		DB.Model(&models.Category{}).Where("name = ?", cat.Name).Count(&count)
+
+		if count == 0 {
+
+			cat.CreatedAt = time.Now()
+			if err := DB.Create(&cat).Error; err != nil {
+				log.Printf("Failed to seed category %s: %v", cat.Name, err)
+			} else {
+				log.Printf("Seeded default category: %s", cat.Name)
+			}
+		}
+	}
 }

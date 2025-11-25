@@ -9,15 +9,14 @@ type Todo struct {
 	Title       string     `json:"title" binding:"required"`
 	Description string     `json:"description"`
 	Completed   bool       `json:"completed"`
-	CategoryID  *uint      `json:"category_id"` // Pointer allows null
+	CategoryID  *uint      `json:"category_id"`
 	Category    *Category  `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
-	Priority    string     `json:"priority" binding:"oneof=high medium low"` // Validation
+	Priority    string     `json:"priority" binding:"oneof=high medium low"`
 	DueDate     *time.Time `json:"due_date"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
-// PaginationResponse structure [cite: 79]
 type PaginationMeta struct {
 	CurrentPage int   `json:"current_page"`
 	PerPage     int   `json:"per_page"`

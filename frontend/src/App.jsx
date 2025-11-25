@@ -4,7 +4,6 @@ import Dashboard from './pages/Dashboard';
 
 function App() {
   return (
-    // Wrap app in Context Provider 
     <TodoProvider>
       <Dashboard />
     </TodoProvider>
